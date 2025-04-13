@@ -8,7 +8,8 @@ import {
   RoomAudioRenderer,
   ControlBar,
   useTracks,
-  useRoomContext
+  useRoomContext,
+  useParticipants
 } from '@livekit/components-react';
 import { Track } from 'livekit-client';
 import { useConvexAuth } from 'convex/react';
@@ -20,6 +21,29 @@ import '@livekit/components-styles';
 // Custom component for room controls with leave button
 function RoomControls() {
   const room = useRoomContext();
+  const { isAuthenticated } = useConvexAuth();
+  const currentUser = useQuery(api.users.getCurrentUser);
+  const [showInviteMenu, setShowInviteMenu] = useState(false);
+  
+  // Get actual LiveKit participants
+  const participants = useParticipants();
+  
+  // Check if user is admin or team member
+  const canInviteToBreakout = isAuthenticated && 
+    currentUser && 
+    (currentUser.role === 'admin' || currentUser.role === 'user');
+  
+  // Filter to only include client participants
+  const clientParticipants = participants.filter(participant => {
+    try {
+      if (!participant.metadata) return false;
+      const metadata = JSON.parse(participant.metadata);
+      return metadata.role === 'client';
+    } catch (e) {
+      console.error('Error parsing metadata:', e);
+      return false;
+    }
+  });
   
   const handleLeave = () => {
     if (room) {
@@ -32,9 +56,53 @@ function RoomControls() {
   return (
     <div className="fixed bottom-4 left-0 right-0 flex justify-center gap-4 z-50">
       <ControlBar variation="minimal" className="bg-gray-800 bg-opacity-75 rounded-lg p-2" />
+      
+      {/* Breakout room invitation controls - only shown to admin/user roles */}
+      {canInviteToBreakout && (
+        <div className="relative">
+          <button
+            onClick={() => setShowInviteMenu(!showInviteMenu)}
+            className="bg-blue-500 hover:bg-blue-600 text-white font-medium px-4 py-2 h-full rounded-md"
+          >
+            Breakout
+          </button>
+          
+          {showInviteMenu && (
+            <div className="absolute bottom-full mb-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-3 min-w-[200px] max-h-[300px] overflow-y-auto">
+              <h3 className="text-sm font-bold mb-2 border-b pb-1">Invite to Breakout Room</h3>
+              
+              {clientParticipants.length === 0 ? (
+                <p className="text-xs text-gray-500 dark:text-gray-400">No clients available to invite</p>
+              ) : (
+                <ul className="space-y-1">
+                  {clientParticipants.map((participant) => {
+                    const meta = participant.metadata ? JSON.parse(participant.metadata) : {};
+                    return (
+                      <li key={participant.sid} className="flex justify-between items-center">
+                        <span className="text-sm">{meta.name || participant.identity}</span>
+                        <button
+                          className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded"
+                          onClick={() => {
+                            // UI only for now - would invoke breakout room creation
+                            alert(`Invited ${meta.name || participant.identity} to a breakout room`);
+                            setShowInviteMenu(false);
+                          }}
+                        >
+                          Invite
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+      
       <button 
         onClick={handleLeave}
-        className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md"
+        className="bg-red-500 hover:bg-red-600 text-white font-medium px-4 py-2 rounded-md"
       >
         Leave Room
       </button>
