@@ -14,6 +14,8 @@ import type {
   FunctionReference,
 } from "convex/server";
 import type * as auth from "../auth.js";
+import type * as breakout from "../breakout.js";
+import type * as breakoutActions from "../breakoutActions.js";
 import type * as clients from "../clients.js";
 import type * as http from "../http.js";
 import type * as livekit from "../livekit.js";
@@ -30,6 +32,8 @@ import type * as users from "../users.js";
  */
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  breakout: typeof breakout;
+  breakoutActions: typeof breakoutActions;
   clients: typeof clients;
   http: typeof http;
   livekit: typeof livekit;

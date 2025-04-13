@@ -14,6 +14,7 @@ import ClientSignIn from "./pages/ClientSignIn";
 import TeamManagement from "./pages/TeamManagement";
 import ClientManagement from "./pages/ClientManagement";
 import Arena from "./pages/Arena";
+import Breakout from "./pages/Breakout";
 import { useEffect, useState } from "react";
 
 export default function App() {
@@ -94,6 +95,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/arena" element={<Arena />} />
+        <Route path="/breakout" element={<Breakout />} />
         
         {/* Authentication routes */}
         <Route 

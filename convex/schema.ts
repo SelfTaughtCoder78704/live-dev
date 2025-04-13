@@ -7,14 +7,12 @@ import { authTables } from "@convex-dev/auth/server";
 // The schema provides more precise TypeScript types.
 export default defineSchema({
   ...authTables,
-  // Add custom fields to the built-in users table
   users: defineTable({
     name: v.optional(v.string()),
     email: v.optional(v.string()),
     role: v.optional(v.string()), // Add role field
-    // Keep any fields automatically populated by Convex Auth
-    tokenIdentifier: v.optional(v.string()),
-  }).index("by_token", ["tokenIdentifier"]),
+    // Fields automatically populated by Convex Auth are already in authTables
+  }).index("by_email", ["email"]),
 
   // New table for admin-managed team list
   adminTeamList: defineTable({
@@ -35,4 +33,17 @@ export default defineSchema({
     dateAdded: v.float64(), // timestamp
     invitedBy: v.id("users")
   }).index("by_email", ["email"]),
+
+  // New table for breakout room invitations
+  breakoutInvites: defineTable({
+    inviterId: v.id("users"),      // User ID of the team member who sent invite
+    inviteeId: v.id("users"),      // User ID of the client receiving invite
+    status: v.string(),            // "pending", "accepted", "declined", "expired"
+    timestamp: v.float64(),        // Creation time
+    roomId: v.string(),            // Unique breakout room identifier
+    expiresAt: v.float64(),        // When invitation expires
+  }).index("by_invitee", ["inviteeId"])
+    .index("by_inviter", ["inviterId"])
+    .index("by_status", ["status"])
+    .index("by_room", ["roomId"]),
 });

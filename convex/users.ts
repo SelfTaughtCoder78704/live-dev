@@ -633,4 +633,12 @@ export const getCorrectLoginPath = query({
     // If no specific role or unknown role, default to team signin
     return "/team-signin";
   },
+});
+
+// Add a function to get a user by ID
+export const getUserById = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    return await ctx.db.get(userId);
+  },
 }); 
