@@ -2,7 +2,6 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { QueryCtx, MutationCtx } from "./_generated/server";
 
 // Helper query to get a role from team list for an email
 export const getTeamMemberRole = query({
