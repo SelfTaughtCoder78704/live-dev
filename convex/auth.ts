@@ -2,7 +2,6 @@ import { convexAuth } from "@convex-dev/auth/server";
 import { Password } from "@convex-dev/auth/providers/Password";
 import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import { Id } from "./_generated/dataModel";
 
 // Create the standard authentication handlers
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({

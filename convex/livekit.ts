@@ -22,6 +22,7 @@ export const generateToken = action({
     canSubscribe: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    console.log(ctx.auth.getUserIdentity());
     // Get LiveKit credentials from environment
     const apiKey = process.env.LIVEKIT_API_KEY;
     const apiSecret = process.env.LIVEKIT_API_SECRET;
