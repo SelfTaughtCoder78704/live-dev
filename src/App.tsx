@@ -176,7 +176,7 @@ function Content({ userRole }: { userRole: string | null }) {
     : "Not available";
 
   return (
-    <div className="flex flex-col gap-8 max-w-lg mx-auto p-8">
+    <div className="flex flex-col gap-8 max-w-6xl mx-auto p-8">
       <h1 className="text-4xl font-bold">Dashboard</h1>
       <p>Welcome {dashboardInfo.name || dashboardInfo.viewer || "Anonymous"}!</p>
       
@@ -228,6 +228,101 @@ function Content({ userRole }: { userRole: string | null }) {
           )}
         </div>
       </div>
+      
+      {/* Only show team and client lists to admins */}
+      {userRole === 'admin' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Team Members Section */}
+          <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-md">
+            <h2 className="text-xl font-bold mb-4">Active Team Members</h2>
+            {dashboardInfo.teamMembers && dashboardInfo.teamMembers.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-200 dark:bg-gray-700">
+                      <th className="px-4 py-2 text-left">Name</th>
+                      <th className="px-4 py-2 text-left">Email</th>
+                      <th className="px-4 py-2 text-left">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dashboardInfo.teamMembers.map((member: any) => (
+                      <tr key={member._id} className="border-b border-gray-300 dark:border-gray-700">
+                        <td className="px-4 py-2">{member.name || "—"}</td>
+                        <td className="px-4 py-2">{member.email}</td>
+                        <td className="px-4 py-2">
+                          <span className={`inline-block px-2 py-1 rounded-full text-xs ${
+                            member.isRegistered 
+                              ? "bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100" 
+                              : "bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100"
+                          }`}>
+                            {member.isRegistered ? "Active" : "Invited"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-gray-500">No team members added yet.</p>
+            )}
+            <div className="mt-4">
+              <Link 
+                to="/team-management" 
+                className="text-blue-600 dark:text-blue-400 hover:underline text-sm"
+              >
+                Manage Team →
+              </Link>
+            </div>
+          </div>
+          
+          {/* Clients Section */}
+          <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-md">
+            <h2 className="text-xl font-bold mb-4">Client Accounts</h2>
+            {dashboardInfo.clients && dashboardInfo.clients.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-200 dark:bg-gray-700">
+                      <th className="px-4 py-2 text-left">Name</th>
+                      <th className="px-4 py-2 text-left">Email</th>
+                      <th className="px-4 py-2 text-left">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dashboardInfo.clients.map((client: any) => (
+                      <tr key={client._id} className="border-b border-gray-300 dark:border-gray-700">
+                        <td className="px-4 py-2">{client.name || "—"}</td>
+                        <td className="px-4 py-2">{client.email}</td>
+                        <td className="px-4 py-2">
+                          <span className={`inline-block px-2 py-1 rounded-full text-xs ${
+                            client.isRegistered 
+                              ? "bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100" 
+                              : "bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100"
+                          }`}>
+                            {client.isRegistered ? "Active" : "Invited"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-gray-500">No clients added yet.</p>
+            )}
+            <div className="mt-4">
+              <Link 
+                to="/client-management" 
+                className="text-blue-600 dark:text-blue-400 hover:underline text-sm"
+              >
+                Manage Clients →
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
       
       <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-md">
         <h2 className="text-xl font-bold mb-2">Getting Started</h2>

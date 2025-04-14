@@ -4,9 +4,7 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 // Write your Convex functions in any file inside this directory (`convex`).
 // See https://docs.convex.dev/functions for more.
 
-
-
-// Example dashboard info query
+// Dashboard info query with team members and clients info
 export const getDashboardInfo = query({
   args: {},
   handler: async (ctx) => {
@@ -25,7 +23,9 @@ export const getDashboardInfo = query({
       profileType: null as string | null,
       dateAdded: null as number | null,
       status: null as string | null,
-      notes: null as string | null
+      notes: null as string | null,
+      teamMembers: [] as any[],
+      clients: [] as any[]
     };
 
     // If we have an email, check for additional profile data
@@ -45,6 +45,46 @@ export const getDashboardInfo = query({
             status: teamMember.status,
             dateAdded: teamMember.dateAdded || null
           };
+        }
+
+        // If admin or user, fetch active team members (only admins can see all members)
+        if (user.role === "admin") {
+          const allTeamMembers = await ctx.db
+            .query("adminTeamList")
+            .collect();
+
+          // Get all registered users to cross-reference with team members
+          const allUsers = await ctx.db
+            .query("users")
+            .collect();
+
+          const usersByEmail = new Map(
+            allUsers.map(user => [user.email, user])
+          );
+
+          profileData.teamMembers = allTeamMembers.map(member => ({
+            _id: member._id,
+            email: member.email,
+            name: member.name,
+            role: member.role || "member",
+            status: member.status,
+            isRegistered: !!usersByEmail.get(member.email),
+            dateAdded: member.dateAdded
+          }));
+
+          // Also fetch clients
+          const allClients = await ctx.db
+            .query("adminClientList")
+            .collect();
+
+          profileData.clients = allClients.map(client => ({
+            _id: client._id,
+            email: client.email,
+            name: client.name,
+            status: client.status,
+            isRegistered: !!usersByEmail.get(client.email),
+            dateAdded: client.dateAdded
+          }));
         }
       }
       // Check if user is a client
