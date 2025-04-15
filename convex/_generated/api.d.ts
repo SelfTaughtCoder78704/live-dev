@@ -20,6 +20,7 @@ import type * as clients from "../clients.js";
 import type * as http from "../http.js";
 import type * as livekit from "../livekit.js";
 import type * as myFunctions from "../myFunctions.js";
+import type * as rooms from "../rooms.js";
 import type * as users from "../users.js";
 
 /**
@@ -38,6 +39,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   livekit: typeof livekit;
   myFunctions: typeof myFunctions;
+  rooms: typeof rooms;
   users: typeof users;
 }>;
 export declare const api: FilterApi<

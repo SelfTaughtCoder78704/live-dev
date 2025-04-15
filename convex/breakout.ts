@@ -117,17 +117,71 @@ export const respondToInvite = mutation({
       throw new Error(`Invitation already ${invitation.status}`);
     }
 
-    // Update invitation status
-    await ctx.db.patch(args.inviteId, {
-      status: args.response,
-    });
-    console.log("respondToInvite: Updated invitation status to", args.response);
+    if (args.response === "accept") {
+      // Update invitation status for accepted invitations
+      await ctx.db.patch(args.inviteId, {
+        status: args.response,
+      });
+      console.log("respondToInvite: Updated invitation status to", args.response);
+    } else if (args.response === "decline") {
+      // For declined invitations, delete from the database immediately
+      await ctx.db.delete(args.inviteId);
+      console.log("respondToInvite: Deleted declined invitation");
+    }
 
     return {
       status: args.response,
       roomId: invitation.roomId,
       inviterId: invitation.inviterId,
       inviteeId: invitation.inviteeId,
+    };
+  },
+});
+
+/**
+ * Updates the status of an invitation to a specified status.
+ * Only the inviter or invitee can update invitation status.
+ */
+export const updateInvitationStatus = mutation({
+  args: {
+    inviteId: v.id("breakoutInvites"),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("accepted"),
+      v.literal("declined"),
+      v.literal("completed"),
+      v.literal("expired"),
+      v.literal("ongoing")
+    ),
+  },
+  handler: async (ctx, args) => {
+    // Get the current authenticated user ID
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Unauthorized: Not authenticated");
+    }
+
+    // Get the invitation
+    const invitation = await ctx.db.get(args.inviteId);
+    if (!invitation) {
+      throw new Error("Invitation not found");
+    }
+
+    // Verify that the user is either the inviter or invitee
+    if (invitation.inviterId !== userId && invitation.inviteeId !== userId) {
+      throw new Error("Unauthorized: Only the inviter or invitee can update this invitation");
+    }
+
+    // Update invitation status
+    await ctx.db.patch(args.inviteId, { status: args.status });
+
+    return {
+      success: true,
+      message: `Invitation status updated to ${args.status}`,
+      invitation: {
+        ...invitation,
+        status: args.status
+      }
     };
   },
 });
@@ -240,6 +294,7 @@ export const getMySentInvites = query({
   args: {
     includeExpired: v.optional(v.boolean()),
     includeCompleted: v.optional(v.boolean()),
+    includeOngoing: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     // Get the current authenticated user ID
@@ -271,6 +326,13 @@ export const getMySentInvites = query({
     if (!args.includeCompleted) {
       invitesQuery = invitesQuery.filter(q =>
         q.neq(q.field("status"), "completed")
+      );
+    }
+
+    // Filter out ongoing invitations unless requested
+    if (!args.includeOngoing) {
+      invitesQuery = invitesQuery.filter(q =>
+        q.neq(q.field("status"), "ongoing")
       );
     }
 
@@ -367,7 +429,7 @@ export const checkRoomInvitation = query({
   handler: async (ctx, args) => {
     console.log("checkRoomInvitation: Checking if user", args.userId, "has access to room", args.roomId);
 
-    // Check for both pending and accepted invitations
+    // Check for both pending, accepted, and ongoing invitations
     const invitation = await ctx.db
       .query("breakoutInvites")
       .filter((q) =>
@@ -379,7 +441,8 @@ export const checkRoomInvitation = query({
           ),
           q.or(
             q.eq(q.field("status"), "accept"),
-            q.eq(q.field("status"), "pending")
+            q.eq(q.field("status"), "pending"),
+            q.eq(q.field("status"), "ongoing")
           )
         )
       )
@@ -406,39 +469,214 @@ export const completeBreakoutInvite = mutation({
       throw new Error("Unauthorized: Not authenticated");
     }
 
-    // Get user record directly by ID
-    const user = await ctx.db.get(userId);
-    console.log("completeBreakoutInvite: User found", user?._id, user?.email, user?.role);
-
-    if (!user) {
-      console.log("completeBreakoutInvite: User not found");
-      throw new Error("User not found");
-    }
-
-    // Only admins or team members can mark invitations as completed
-    if (user.role !== "admin" && user.role !== "user") {
-      throw new Error("Unauthorized: Only team members can complete breakout invitations");
-    }
-
-    // Find all accepted invitations for this room
+    // Find all accepted or ongoing invitations for this room
     const invites = await ctx.db
       .query("breakoutInvites")
-      .filter(q =>
+      .filter((q) =>
         q.and(
           q.eq(q.field("roomId"), args.roomId),
-          q.eq(q.field("status"), "accept")
+          q.or(
+            q.eq(q.field("status"), "accept"),
+            q.eq(q.field("status"), "ongoing")
+          )
         )
       )
       .collect();
 
-    console.log(`completeBreakoutInvite: Found ${invites.length} active invites for room ${args.roomId}`);
-
-    // Update all to completed
-    for (const invite of invites) {
-      await ctx.db.patch(invite._id, { status: "completed" });
-      console.log(`completeBreakoutInvite: Marked invite ${invite._id} as completed`);
+    if (invites.length === 0) {
+      throw new Error(`No active invitations found for room ${args.roomId}`);
     }
 
-    return { completed: invites.length };
+    // Check if user is a participant in any of these invitations
+    const userIsParticipant = invites.some(
+      invite => invite.inviterId === userId || invite.inviteeId === userId
+    );
+
+    if (!userIsParticipant) {
+      throw new Error("Unauthorized: Only participants can complete breakout invitations");
+    }
+
+    console.log(`completeBreakoutInvite: Found ${invites.length} active invites for room ${args.roomId}`);
+
+    // Delete all invitations instead of just marking them as completed
+    let deleted = 0;
+    for (const invite of invites) {
+      await ctx.db.delete(invite._id);
+      deleted++;
+      console.log(`completeBreakoutInvite: Deleted invite ${invite._id}`);
+    }
+
+    return { success: true, deleted };
+  },
+});
+
+/**
+ * Complete all ongoing invitations for a room
+ */
+export const completeAllOngoingInvites = mutation({
+  args: {
+    roomId: v.id("breakoutRooms"),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Unauthorized: Not authenticated");
+    }
+
+    // Check if the user has access to this room (sent the invite or was invited)
+    const invites = await ctx.db
+      .query("breakoutInvites")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("roomId"), args.roomId),
+          q.eq(q.field("status"), "ongoing")
+        )
+      )
+      .collect();
+
+    if (!invites.some((invite) => invite.inviterId === userId || invite.inviteeId === userId)) {
+      throw new Error("Unauthorized: Not a participant in this room");
+    }
+
+    // Mark all ongoing invitations for this room as completed
+    for (const invite of invites) {
+      await ctx.db.patch(invite._id, { status: "completed" });
+    }
+
+    return { success: true, count: invites.length };
+  },
+});
+
+/**
+ * Get all invitations with ongoing status for a specific room
+ */
+export const getOngoingInvites = query({
+  args: {
+    roomId: v.id("breakoutRooms"),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Unauthorized: Not authenticated");
+    }
+
+    return await ctx.db
+      .query("breakoutInvites")
+      .filter(q =>
+        q.and(
+          q.eq(q.field("roomId"), args.roomId),
+          q.eq(q.field("status"), "ongoing")
+        )
+      )
+      .collect();
+  }
+});
+
+/**
+ * Check if a user is the inviter for any invitation to a specific room.
+ * Used for authorizing access to breakout rooms.
+ */
+export const checkRoomInviter = query({
+  args: {
+    roomId: v.string(),
+    userId: v.id("users")
+  },
+  handler: async (ctx, args) => {
+    console.log("checkRoomInviter: Checking if user", args.userId, "is inviter for room", args.roomId);
+
+    // Check for invitations where the user is the inviter
+    const invitation = await ctx.db
+      .query("breakoutInvites")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("roomId"), args.roomId),
+          q.eq(q.field("inviterId"), args.userId),
+          // Include any status that would allow accessing the room
+          q.or(
+            q.eq(q.field("status"), "accept"),
+            q.eq(q.field("status"), "ongoing")
+          )
+        )
+      )
+      .first();
+
+    console.log("checkRoomInviter: Result", invitation?._id, invitation?.status);
+
+    return invitation;
+  }
+});
+
+/**
+ * Get active breakout invitations for the current user (as invitee).
+ * This allows clients to see and rejoin breakout rooms they've been invited to.
+ */
+export const getMyActiveBreakouts = query({
+  args: {},
+  handler: async (ctx) => {
+    // Get the current authenticated user ID
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      return [];
+    }
+
+    // Get user record
+    const user = await ctx.db.get(userId);
+    if (!user) {
+      return [];
+    }
+
+    // Get invitations where this user is the invitee and status is accept or ongoing
+    const activeInvites = await ctx.db
+      .query("breakoutInvites")
+      .filter(q =>
+        q.and(
+          q.eq(q.field("inviteeId"), user._id),
+          q.or(
+            q.eq(q.field("status"), "accept"),
+            q.eq(q.field("status"), "ongoing")
+          )
+        )
+      )
+      .collect();
+
+    console.log(`getMyActiveBreakouts: Found ${activeInvites.length} active invites for user ${user.email}`);
+
+    // Get user details for each inviter
+    const invitesWithDetails = await Promise.all(
+      activeInvites.map(async (invite) => {
+        const inviter = await ctx.db.get(invite.inviterId);
+        return {
+          ...invite,
+          inviter: inviter ? {
+            _id: inviter._id,
+            name: inviter.name || "Unknown",
+            email: inviter.email || "Unknown",
+            role: inviter.role || "Unknown"
+          } : { name: "Unknown", email: "Unknown", role: "Unknown" }
+        };
+      })
+    );
+
+    return invitesWithDetails;
+  },
+});
+
+/**
+ * Check if any invitations exist for a given room ID.
+ * This is used to detect when a session has been ended by another participant.
+ */
+export const checkInvitationExists = query({
+  args: {
+    roomId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Check if any invitations exist for this room
+    const invites = await ctx.db
+      .query("breakoutInvites")
+      .filter(q => q.eq(q.field("roomId"), args.roomId))
+      .first();
+
+    // Return true if invitations exist, false otherwise
+    return invites !== null;
   },
 });

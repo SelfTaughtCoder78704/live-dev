@@ -4,6 +4,7 @@ import {
   useConvexAuth,
   useMutation,
   useQuery,
+  useAction,
 } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { useAuthActions } from "@convex-dev/auth/react";
@@ -161,6 +162,33 @@ function SignOutButton() {
 
 function Content({ userRole }: { userRole: string | null }) {
   const dashboardInfo = useQuery(api.myFunctions.getDashboardInfo);
+  
+  // Add queries for active breakout sessions
+  const clientActiveBreakouts = useQuery(api.breakout.getMyActiveBreakouts);
+  const sentInvites = useQuery(api.breakout.getMySentInvites, { includeOngoing: true });
+  
+  // Function to generate token and join breakout room
+  const generateBreakoutToken = useAction(api.breakoutActions.generateBreakoutRoomToken);
+  const [isJoining, setIsJoining] = useState<Record<string, boolean>>({});
+  
+  // Function to join a breakout room
+  const joinBreakoutRoom = async (roomId: string, inviteId: string) => {
+    try {
+      setIsJoining(prev => ({ ...prev, [inviteId]: true }));
+      
+      // Generate token and open the room
+      const token = await generateBreakoutToken({ roomId });
+      
+      // Open the breakout room in a new window
+      const breakoutUrl = `/breakout?room=${roomId}&token=${encodeURIComponent(token)}`;
+      window.open(breakoutUrl, '_blank');
+    } catch (error) {
+      console.error("Error joining breakout room:", error);
+      alert(`Error joining breakout: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } finally {
+      setIsJoining(prev => ({ ...prev, [inviteId]: false }));
+    }
+  };
 
   if (!dashboardInfo) {
     return (
@@ -174,11 +202,72 @@ function Content({ userRole }: { userRole: string | null }) {
   const formattedDate = dashboardInfo.dateAdded 
     ? new Date(dashboardInfo.dateAdded).toLocaleDateString() 
     : "Not available";
+    
+  // Get active breakouts based on user role
+  const hasActiveBreakouts = 
+    (userRole === 'client' && clientActiveBreakouts && clientActiveBreakouts.length > 0) ||
+    (userRole !== 'client' && sentInvites && sentInvites.filter(i => i.status === "accept" || i.status === "ongoing").length > 0);
 
   return (
     <div className="flex flex-col gap-8 max-w-6xl mx-auto p-8">
       <h1 className="text-4xl font-bold">Dashboard</h1>
       <p>Welcome {dashboardInfo.name || dashboardInfo.viewer || "Anonymous"}!</p>
+      
+      {/* Active Breakout Sessions Section */}
+      {hasActiveBreakouts && (
+        <div className="bg-green-100 dark:bg-green-800 p-4 rounded-md border border-green-300 dark:border-green-700">
+          <h2 className="text-xl font-bold mb-2">Active Breakout Sessions</h2>
+          <div className="space-y-2">
+            {userRole === 'client' && clientActiveBreakouts && clientActiveBreakouts.map(breakout => (
+              <div key={breakout._id.toString()} className="flex items-center justify-between bg-white dark:bg-gray-700 p-2 rounded">
+                <div>
+                  <p className="font-medium">Active Breakout Session</p>
+                  {breakout.timestamp && (
+                    <p className="text-xs text-gray-500">
+                      Created {new Date(breakout.timestamp).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => void joinBreakoutRoom(breakout.roomId, breakout._id.toString())}
+                  disabled={isJoining[breakout._id.toString()]}
+                  className={`${
+                    isJoining[breakout._id.toString()] ? 'bg-gray-400' : 'bg-blue-500 hover:bg-blue-600'
+                  } text-white px-3 py-1 rounded text-sm`}
+                >
+                  {isJoining[breakout._id.toString()] ? 'Joining...' : 'Rejoin Session'}
+                </button>
+              </div>
+            ))}
+            
+            {userRole !== 'client' && sentInvites && sentInvites
+              .filter(invite => invite.status === "accept" || invite.status === "ongoing")
+              .map(invite => (
+                <div key={invite._id.toString()} className="flex items-center justify-between bg-white dark:bg-gray-700 p-2 rounded">
+                  <div>
+                    <p className="font-medium">Active Breakout Session</p>
+                    <span className={`text-xs ${
+                      invite.status === "ongoing" ? "text-green-600 dark:text-green-400" : "text-gray-500"
+                    }`}>
+                      {invite.status === "ongoing" ? "In Progress" : "Accepted"}
+                      {invite.timestamp && ` • ${new Date(invite.timestamp).toLocaleString()}`}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => void joinBreakoutRoom(invite.roomId, invite._id.toString())}
+                    disabled={isJoining[invite._id.toString()]}
+                    className={`${
+                      isJoining[invite._id.toString()] ? 'bg-gray-400' : 'bg-blue-500 hover:bg-blue-600'
+                    } text-white px-3 py-1 rounded text-sm`}
+                  >
+                    {isJoining[invite._id.toString()] ? 'Joining...' : 'Rejoin Session'}
+                  </button>
+                </div>
+              ))
+            }
+          </div>
+        </div>
+      )}
       
       {/* Role-specific content */}
       {userRole === 'admin' && (

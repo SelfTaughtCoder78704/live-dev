@@ -46,4 +46,15 @@ export default defineSchema({
     .index("by_inviter", ["inviterId"])
     .index("by_status", ["status"])
     .index("by_room", ["roomId"]),
+
+  // Table for persistent rooms (like the arena)
+  persistentRooms: defineTable({
+    name: v.string(),           // Room name used in LiveKit
+    type: v.string(),           // "arena" or other types you might add
+    createdAt: v.float64(),     // Creation timestamp
+    lastActive: v.float64(),    // Last time it was accessed
+    createdBy: v.id("users"),   // User who created it (admin)
+    isActive: v.boolean(),      // Whether this room is the current active one
+  }).index("by_type", ["type"])
+    .index("by_active", ["isActive"]),
 });
