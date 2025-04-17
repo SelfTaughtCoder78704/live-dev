@@ -11,6 +11,7 @@ export default defineSchema({
     name: v.optional(v.string()),
     email: v.optional(v.string()),
     role: v.optional(v.string()), // Add role field
+    allowedToTranscribe: v.optional(v.boolean()),
     // Fields automatically populated by Convex Auth are already in authTables
   }).index("by_email", ["email"]),
 

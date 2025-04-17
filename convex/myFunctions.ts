@@ -1,4 +1,5 @@
-import { query } from "./_generated/server";
+import { v } from "convex/values";
+import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
 // Write your Convex functions in any file inside this directory (`convex`).
@@ -108,5 +109,21 @@ export const getDashboardInfo = query({
     }
 
     return profileData;
+  },
+});
+
+// Update user allowedToTranscribe
+export const updateAllowedToTranscribe = mutation({
+  args: {
+    allowedToTranscribe: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return null;
+
+    const user = await ctx.db.get(userId);
+    if (!user) return null;
+
+    await ctx.db.patch(userId, { allowedToTranscribe: args.allowedToTranscribe });
   },
 });

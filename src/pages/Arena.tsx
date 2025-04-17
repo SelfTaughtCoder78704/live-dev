@@ -12,6 +12,7 @@ import {
   useRoomContext,
   useParticipants
 } from '@livekit/components-react';
+import VoiceTranscriber from '../components/VoiceTranscriber';
 import { Track } from 'livekit-client';
 import { useConvexAuth } from 'convex/react';
 import { Link } from 'react-router-dom';
@@ -667,7 +668,7 @@ function RoomControls() {
         <div className="relative">
           <button
             onClick={() => setShowInviteMenu(!showInviteMenu)}
-            className="bg-blue-500 hover:bg-blue-600 text-white font-medium px-4 py-2 rounded-md"
+            className="bg-blue-500 h-full hover:bg-blue-600 text-white font-medium px-4 py-2 rounded-md"
           >
             Breakout
           </button>
@@ -1024,6 +1025,7 @@ export default function Arena() {
       <BreakoutInvitationNotifier />
       
       <div className="h-[75vh] bg-gray-100 dark:bg-gray-900 rounded-md overflow-hidden relative">
+        <VoiceTranscriber />
         <LiveKitRoom
           token={token}
           serverUrl={import.meta.env.VITE_LIVEKIT_WS_URL as string}

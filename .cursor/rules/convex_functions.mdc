@@ -1,0 +1,136 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Convex Basics — Step-by-Step API Usage Guide
+
+This document walks you through the foundational concepts of using the Convex server runtime, including how to define and use queries, mutations, and actions. These functions are the building blocks of any Convex backend.
+
+---
+
+## 🧠 What Are Convex Functions?
+
+Convex provides **queries**, **mutations**, and **actions** as core server functions:
+
+| Type       | Description                                   | Use Case                                  |
+|------------|-----------------------------------------------|--------------------------------------------|
+| `query`    | Reads data from the database.                 | Show data to users, display lists, etc.    |
+| `mutation` | Writes or updates data in the database.       | Add items, update status, delete records.  |
+| `action`   | Calls external APIs, performs async workflows | Call OpenAI, Stripe, send emails, etc.     |
+
+All functions are defined using helpers from `./_generated/server`.
+
+---
+
+## ✅ Step 1: Create a Query
+
+A query is a function that reads from the Convex database.
+
+```ts
+// convex/messages.ts
+import { query } from "./_generated/server";
+
+export const listMessages = query({
+  handler: async (ctx) => {
+    return await ctx.db.query("messages").collect();
+  },
+});
+```
+
+### How to use it:
+From the frontend using `useQuery()` or programmatically via `api.messages.listMessages`.
+
+---
+
+## ✍️ Step 2: Create a Mutation
+
+Mutations write to the Convex database.
+
+```ts
+// convex/messages.ts
+import { mutation } from "./_generated/server";
+import { v } from "convex/values";
+
+export const saveMessage = mutation({
+  args: { content: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db.insert("messages", { content: args.content });
+  },
+});
+```
+
+### How to use it:
+From the frontend using `useMutation()` or programmatically via `api.messages.saveMessage`.
+
+---
+
+## ⚙️ Step 3: Create an Action
+
+Actions are great for async logic like calling external services, delaying execution, or running background work.
+
+```ts
+// convex/actions/logMessage.ts
+import { action } from "../_generated/server";
+import { v } from "convex/values";
+
+export const logMessage = action({
+  args: { content: v.string() },
+  handler: async (ctx, { content }) => {
+    console.log("Logging message:", content);
+  },
+});
+```
+
+### When to use actions:
+- Use when you need to `await` something outside Convex.
+- Use for non-deterministic logic (e.g. `fetch`, `Date.now()`, random values).
+
+---
+
+## 🧰 Common Context (`ctx`) Usage
+
+Each function gets a context object (`ctx`) with helpful methods:
+
+| `ctx.db.query("table")`         | Start a read query                       |
+| `ctx.db.insert("table", data)`  | Insert a new row                        |
+| `ctx.db.patch(id, updates)`     | Update a row                            |
+| `ctx.db.delete(id)`             | Delete a row                            |
+| `ctx.scheduler.runAfter()`      | Schedule a function to run later (action only) |
+| `ctx.runQuery(fn, args)`        | Run a query from inside an action       |
+| `ctx.runMutation(fn, args)`     | Run a mutation from inside an action    |
+| `ctx.runAction(fn, args)`       | Run an action from inside another action or workflow |
+
+---
+
+## 🧪 Example: Save and List Messages
+
+```ts
+// convex/messages.ts
+import { query, mutation } from "./_generated/server";
+import { v } from "convex/values";
+
+export const saveMessage = mutation({
+  args: { content: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db.insert("messages", { content: args.content });
+  },
+});
+
+export const listMessages = query({
+  handler: async (ctx) => {
+    return await ctx.db.query("messages").collect();
+  },
+});
+```
+
+---
+
+## 🧭 What’s Next?
+- Use **`v` from `convex/values`** to validate arguments.
+- Use **`internal` imports** for calling server-only functions from other server code.
+- Use **actions** when calling external APIs or needing async delays.
+- Learn about **workflows** if you need long-running or retryable logic.
+
+You now know the building blocks of any Convex backend!
+

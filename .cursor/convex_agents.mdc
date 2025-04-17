@@ -1,0 +1,245 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+// Convex Agents & Workflows Integration Documentation
+
+// --- Overview ---
+// Convex Agents allow you to integrate OpenAI-based language agents into your backend using @ai-sdk/openai.
+// Convex Workflows provide durable, resumable, and observable function execution via @convex-dev/workflow.
+// This guide shows how to:
+// 1. Use agents independently
+// 2. Use agents as part of workflows
+// 3. Build robust, observable pipelines with retry, parallelism, and long-term execution
+
+// --- Setup ---
+// Install:
+// npm install @convex-dev/agent @ai-sdk/openai @convex-dev/workflow
+
+// Enable in `convex.config.ts`:
+// import workflow from "@convex-dev/workflow/convex.config";
+// import { defineApp } from "convex/server";
+// const app = defineApp();
+// app.use(workflow);
+// export default app;
+
+// Create workflow manager in `convex/index.ts`:
+import { WorkflowManager } from "@convex-dev/workflow";
+import { components } from "./_generated/api";
+export const workflow = new WorkflowManager(components.workflow);
+
+// --- Creating Tools (Exposed to Agents) ---
+import { createTool } from "@convex-dev/agent";
+import { v } from "convex/values";
+
+export const ideaSearch = createTool({
+  description: "Search for ideas",
+  args: v.object({ query: v.string() }),
+  handler: async (ctx, { query }) => {
+    return await ctx.runQuery(api.ideas.searchIdeas, { query });
+  },
+});
+
+export const ideaCreation = createTool({
+  description: "Create a new idea",
+  args: v.object({
+    title: v.string(),
+    summary: v.string(),
+    tags: v.array(v.string()),
+    entryId: v.union(v.id("entries"), v.null()),
+  }),
+  handler: async (ctx, args) => ctx.runMutation(api.ideas.createIdea, args),
+});
+
+// --- Using Agents Standalone ---
+import { Agent } from "@convex-dev/agent";
+import { openai } from "@ai-sdk/openai";
+
+const ideaManagerAgent = new Agent(components.agent, {
+  name: "Idea Manager",
+  chat: openai.chat("gpt-4o"),
+  textEmbedding: openai.embedding("text-embedding-3-small"),
+  instructions: `You help manage and merge ideas. Use real IDs.`,
+  tools: { ideaCreation, ideaSearch },
+  contextOptions: { recentMessages: 20, includeToolCalls: true },
+  maxSteps: 10,
+});
+
+// Example standalone use of agent inside a Convex action:
+export const submitRandomThought = action({
+  args: { userId: v.string(), entry: v.string() },
+  handler: async (ctx, args) => {
+    const { thread } = await ideaManagerAgent.createThread(ctx, { userId: args.userId });
+    const entryId = await ctx.runMutation(api.ideas.createEntry, {
+      content: args.entry,
+      ideaId: null,
+    });
+    const result = await thread.generateText({
+      prompt: `Help organize this thought: ${args.entry}. Entry ID: ${entryId}`,
+    });
+    return result.text;
+  },
+});
+
+// --- Using Agents in Workflows ---
+export const runAgentWorkflow = workflow.define({
+  args: { userId: v.string(), entry: v.string() },
+  handler: async (step, { userId, entry }): Promise<string> => {
+    const entryId = await step.runMutation(api.ideas.createEntry, {
+      content: entry,
+      ideaId: null,
+    });
+
+    const agentResponse = await step.runAction(
+      internal.agent.runAgentOnEntry,
+      { userId, entry, entryId },
+      { name: "Run Agent" }
+    );
+
+    return agentResponse;
+  },
+});
+
+// --- Internal Action for Workflow Agent Step ---
+export const runAgentOnEntry = internalAction({
+  args: { userId: v.string(), entry: v.string(), entryId: v.id("entries") },
+  handler: async (ctx, { userId, entry, entryId }): Promise<string> => {
+    const { thread } = await ideaManagerAgent.createThread(ctx, { userId });
+    const result = await thread.generateText({
+      prompt: `Organize this idea: ${entry}\nEntry ID: ${entryId}`,
+    });
+    return result.text;
+  },
+});
+
+// --- Workflow Control: Kickoff, Completion, and Cleanup ---
+export const kickoffWorkflow = mutation({
+  handler: async (ctx) => {
+    const workflowId = await workflow.start(
+      ctx,
+      internal.workflows.runAgentWorkflow,
+      { userId: "user1", entry: "My big idea" },
+      {
+        onComplete: internal.workflows.onCompleteHandler,
+        context: { tag: "agent-run" },
+      },
+    );
+  },
+});
+
+export const onCompleteHandler = mutation({
+  args: {
+    workflowId: vWorkflowId,
+    result: vResultValidator,
+    context: v.any(),
+  },
+  handler: async (ctx, { result, context }) => {
+    if (result.kind === "success") {
+      console.log("Agent returned:", result.returnValue);
+    } else {
+      console.error("Workflow failed", result);
+    }
+  },
+});
+
+// --- Benefits ---
+// ✅ Use agents immediately in actions for fast interaction
+// ✅ Use agents in workflows for long-running, background AI orchestration
+// ✅ Retry agent logic with exponential backoff
+// ✅ Monitor, cancel, and cleanup long-living processes
+// ✅ Perfect for pipelines, support automation, idea triage, async analysis
+
+// --- Summary ---
+// Convex Agents and Workflows together unlock scalable, robust, and intelligent backend operations.
+// Choose:
+// - Agent alone: immediate, interactive use
+// - Workflow with agent: durable, step-based orchestration
+// Need more? Ask for usage diagrams, advanced chaining, or performance tuning tips.
+
+
+**Convex Agents and Workflows — Explained Like You’re 5**
+
+---
+
+### 🤖 What is a Convex Agent?
+Imagine you have a really smart robot friend who can help you organize your toys. You tell it, “I found this new toy,” and it can decide which toy box it goes into — or if it should make a new box just for it.
+
+That’s what a Convex Agent does. You give it a tool, like “create a box” or “search for toys,” and it uses those tools to help you organize things using AI.
+
+---
+
+### 🛠️ What is a Tool?
+A tool is like a magic button the robot can press.
+- One button creates a new idea.
+- One button searches for ideas.
+- One button updates an idea.
+
+You build the buttons, and the robot knows how to press them when needed.
+
+---
+
+### 🧠 What is AI in this case?
+AI here is the smart brain inside the robot. It reads what you said, thinks hard about it, and chooses the right buttons (tools) to press. We use OpenAI for the brain — kind of like giving the robot a college education.
+
+---
+
+### 🧵 What is a Thread?
+A thread is like a conversation notebook. When your robot talks to you, it writes down what it said so it remembers it later. Each person has their own notebook so the robot never gets confused.
+
+---
+
+### ⏱️ What is a Workflow?
+Let’s say your robot needs to:
+1. Write your name on a toy.
+2. Wait a week.
+3. Then put it in the toy box.
+
+That’s a *workflow*! It’s a step-by-step plan that keeps going, even if the robot takes a nap, or the power goes out.
+
+A **workflow is like a bedtime routine**: Brush teeth → Pajamas → Story time → Sleep. It always goes in order, and you can pause or cancel it.
+
+---
+
+### 🤝 How Do Agents and Workflows Work Together?
+Let’s say you want your robot to think about your toys (use AI), but you want it to do it slowly and carefully, maybe even tomorrow.
+
+So you make a *workflow* and tell the robot, “Hey, tomorrow, use your brain and figure out what box this toy goes in.” The workflow remembers what to do, and the agent does the smart thinking when it’s time.
+
+This lets you:
+- Make smart decisions
+- Spread them out over time
+- Retry if something breaks
+- And clean up when you’re done
+
+---
+
+### 🎯 When to Use What?
+| You want...                              | Use Agent Alone | Use with Workflow |
+|------------------------------------------|------------------|--------------------|
+| Fast answers or organizing right now     | ✅               | ❌                 |
+| A long process that takes time           | ❌               | ✅                 |
+| A smart assistant who waits and retries  | ❌               | ✅                 |
+| To build a smart task runner             | ✅               | ✅                 |
+
+---
+
+### 🏁 What Can You Build?
+- Smart idea sorters
+- AI-powered task checklists
+- Auto-reply bots
+- Support workflows
+- Learning assistants
+
+And it all works even if your computer goes to sleep or you come back tomorrow!
+
+---
+
+### 🧸 Final Thoughts
+Convex Agents are your robot brains.
+Workflows are your bedtime routines.
+Together, they build powerful helpers that never forget what to do.
+
+If you can dream it, you can automate it. Even if you're 5.
+
+
