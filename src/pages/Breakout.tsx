@@ -89,6 +89,15 @@ function VideoLayout() {
     };
   }, [listening, updateAllowedToTranscribe]);
   
+  // Effect to stop transcription when microphone is disabled
+  useEffect(() => {
+    if (!isMicrophoneEnabled && listening) {
+      console.log("Microphone disabled, stopping transcription");
+      SpeechRecognition.stopListening();
+      void updateAllowedToTranscribe({ allowedToTranscribe: false });
+    }
+  }, [isMicrophoneEnabled, listening, updateAllowedToTranscribe]);
+  
   // Show warning if browser doesn't support speech recognition
   if (!browserSupportsSpeechRecognition) {
     console.warn("Browser doesn't support speech recognition");
@@ -146,12 +155,12 @@ function VideoLayout() {
                 ? 'bg-purple-500 hover:bg-purple-600' 
                 : 'bg-gray-400 relative'
             } 
-            text-white font-medium px-4 py-2 ml-2 rounded-md flex items-center
+            text-white font-medium px-4 py-2 ml-2 rounded-md flex items-center relative
           `}
           disabled={!isMicrophoneEnabled && !listening}
           title={isMicrophoneEnabled ? "Toggle transcription" : "Enable microphone first"}
         >
-          {!isMicrophoneEnabled && !listening && (
+          {!isMicrophoneEnabled && (
             <div className="absolute inset-0 flex items-center justify-center bg-gray-400 bg-opacity-90 rounded-md">
               <div className="flex items-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1 text-white" viewBox="0 0 20 20" fill="currentColor">
