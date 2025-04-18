@@ -4,6 +4,7 @@ import { api } from '../../convex/_generated/api';
 import { Id } from '../../convex/_generated/dataModel';
 import { useConvexAuth } from 'convex/react';
 import { useRoomContext } from '@livekit/components-react';
+import { useNavigate } from 'react-router-dom';
 
 export default function BreakoutNotifierWithContext() {
   const { isAuthenticated } = useConvexAuth();
@@ -15,6 +16,7 @@ export default function BreakoutNotifierWithContext() {
   const [acceptedInvites, setAcceptedInvites] = useState<Record<string, boolean>>({});
   const [isDismissed, setIsDismissed] = useState(false);
   const room = useRoomContext(); // This is safe inside LiveKitRoom
+  const navigate = useNavigate();
   
   // Force refresh of invitations every 5 seconds
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -89,12 +91,16 @@ export default function BreakoutNotifierWithContext() {
             await room.disconnect();
           }
           
-          // Open the breakout room in a new window
-          const breakoutUrl = `/breakout?room=${result.roomId}&token=${encodeURIComponent(token)}`;
-          window.open(breakoutUrl, '_blank');
+          // Set flag that we'll be returning to Arena later
+          sessionStorage.setItem('returning_from_breakout', 'true');
           
-          // Reload the page to reset state
-          window.location.reload();
+          // Create the breakout URL
+          const breakoutUrl = `/breakout?room=${result.roomId}&token=${encodeURIComponent(token)}`;
+          
+          // Use navigate instead of window.open
+          void navigate(breakoutUrl);
+          
+          // No need to reload the page since we're navigating away
           
           // Mark this invitation as accepted
           setAcceptedInvites(prev => ({ ...prev, [inviteId.toString()]: true }));

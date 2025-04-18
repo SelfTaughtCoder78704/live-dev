@@ -3,6 +3,7 @@ import { useAction, useQuery, useMutation } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { Id } from '../../convex/_generated/dataModel';
 import { useConvexAuth } from 'convex/react';
+import { useNavigate } from 'react-router-dom';
 
 export default function BreakoutInvitationNotifier() {
   const { isAuthenticated } = useConvexAuth();
@@ -13,6 +14,7 @@ export default function BreakoutInvitationNotifier() {
   const currentUser = useQuery(api.users.getCurrentUser);
   const [acceptedInvites, setAcceptedInvites] = useState<Record<string, boolean>>({});
   const [isDismissed, setIsDismissed] = useState(false);
+  const navigate = useNavigate();
   
   // Force refresh of invitations every 5 seconds
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -81,12 +83,16 @@ export default function BreakoutInvitationNotifier() {
           const token = await generateBreakoutToken({ roomId: result.roomId });
           console.log("Token generated successfully");
           
-          // Open the breakout room in a new window
-          const breakoutUrl = `/breakout?room=${result.roomId}&token=${encodeURIComponent(token)}`;
-          window.open(breakoutUrl, '_blank');
+          // Set flag that we'll be returning to Arena later
+          sessionStorage.setItem('returning_from_breakout', 'true');
           
-          // Reload the page to reset state
-          window.location.reload();
+          // Create the breakout URL
+          const breakoutUrl = `/breakout?room=${result.roomId}&token=${encodeURIComponent(token)}`;
+          
+          // Use navigate instead of window.open
+          void navigate(breakoutUrl);
+          
+          // No need to reload the page since we're navigating away
           
           // Mark this invitation as accepted
           setAcceptedInvites(prev => ({ ...prev, [inviteId.toString()]: true }));

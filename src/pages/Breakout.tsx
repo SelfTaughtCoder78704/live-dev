@@ -199,28 +199,25 @@ export default function Breakout() {
     roomName ? { roomId: roomName } : "skip"
   );
   
-  // Effect to close the tab when the invitation no longer exists
+  // Effect to navigate back to arena when the invitation no longer exists
   // This happens when another participant ends the session
   useEffect(() => {
     // Only run this check if we have a room name and the invitation check has returned
     if (roomName && checkInvitationExists !== undefined) {
       // If checkInvitationExists is false, it means the invitation was deleted
       if (checkInvitationExists === false && !isEndingSession) {
-        console.log("Session ended by another participant, closing tab");
+        console.log("Session ended by another participant, navigating back to arena");
         
-        // Show a message briefly before closing
-        setError("Session ended by another participant. This tab will close.");
+        // Show a message briefly before navigating
+        setError("Session ended by another participant. Returning to Arena...");
         
-        // Close the tab after a short delay to allow the message to be seen
+        // Navigate back to arena after a short delay to allow the message to be seen
         setTimeout(() => {
-          window.close();
-          
-          // Fallback if window.close() is blocked
-          setError("Session ended by another participant. Please close this tab.");
+          void navigate("/arena");
         }, 2000);
       }
     }
-  }, [roomName, checkInvitationExists, isEndingSession]);
+  }, [roomName, checkInvitationExists, isEndingSession, navigate]);
   
   // Function to check and mark cleanup as initiated
   const initiateCleanup = () => {
@@ -261,8 +258,8 @@ export default function Breakout() {
     setRoomName(room);
     setToken(paramToken);
     
-    // Add handler to clean up the session when the tab is closed
-    const handleBeforeUnload = () => {
+    // Add handler to clean up the session when the tab is closed (but not when navigating)
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       // Check if cleanup already initiated
       if (sessionStorage.getItem(`cleanup_${room}`) === 'true') {
         console.log("Cleanup already initiated, skipping duplicate");
@@ -331,17 +328,13 @@ export default function Breakout() {
         console.warn("LiveKit room cleanup failed, but session was marked as completed:", cleanupResult.error);
       }
       
-      // 3. Show a success message briefly before closing
-      setError("Session ended successfully. Closing all participant tabs...");
+      // 3. Show a success message briefly before navigating
+      setError("Session ended successfully. Returning to Arena...");
       
-      // 4. Close the tab after a short delay
+      // 4. Navigate back to arena after a short delay
       setTimeout(() => {
-        console.log("Session ended, closing tab");
-        window.close();
-        
-        // Fallback in case window.close() doesn't work (some browsers restrict it)
-        setError("Session ended. All participants have been notified. Please close this tab.");
-        setIsEndingSession(false);
+        console.log("Session ended, navigating back to arena");
+        void navigate("/arena");
       }, 1500);
     } catch (err) {
       console.error("Error ending breakout session:", err);
@@ -372,10 +365,10 @@ export default function Breakout() {
             </button>
             {error.includes("Session ended") && (
               <button 
-                onClick={() => window.close()}
+                onClick={() => void navigate("/arena")}
                 className="bg-gray-500 hover:bg-gray-600 text-white font-medium px-4 py-2 rounded"
               >
-                Close Tab
+                Return to Arena
               </button>
             )}
           </div>

@@ -35,6 +35,17 @@ export default function Arena() {
   const [error, setError] = useState<string | null>(null);
   const [hasJoined, setHasJoined] = useState(false);
   
+  // Check if we're returning from a breakout when the component mounts
+  useEffect(() => {
+    const returnStatus = sessionStorage.getItem('returning_from_breakout');
+    if (returnStatus === 'true') {
+      console.log('Detected return from breakout room');
+      sessionStorage.removeItem('returning_from_breakout');
+      // Auto-join the room when returning from a breakout
+      setHasJoined(true);
+    }
+  }, []);
+  
   // If no arena room exists and user is admin, create one
   useEffect(() => {
     async function initializeArenaRoom() {
@@ -123,6 +134,11 @@ export default function Arena() {
       default:
         return "You're logged in but your role is limited.";
     }
+  };
+
+  // When navigating to a breakout room, set flag for returning
+  const handleBeforeBreakout = () => {
+    sessionStorage.setItem('returning_from_breakout', 'true');
   };
 
   if (error) {
@@ -225,7 +241,7 @@ export default function Arena() {
         >
           <VideoLayout />
           <RoomAudioRenderer />
-          {/* Also keep it inside LiveKitRoom in case this is required for proper LiveKit context */}
+          {/* These components will use the handleBeforeBreakout function through context */}
           <BreakoutNotifierWithContext />
           <ClientActiveBreakouts />
         </LiveKitRoom>

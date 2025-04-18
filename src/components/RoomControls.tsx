@@ -5,6 +5,7 @@ import { Id } from '../../convex/_generated/dataModel';
 import { useConvexAuth } from 'convex/react';
 import { useRoomContext, useParticipants, ControlBar, useLocalParticipant } from '@livekit/components-react';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
+import { useNavigate } from 'react-router-dom';
 
 export default function RoomControls() {
   const room = useRoomContext();
@@ -158,6 +159,9 @@ export default function RoomControls() {
     }
   }, [sentInvites]);
   
+  // Add useNavigate hook
+  const navigate = useNavigate();
+  
   // Function to join a breakout room as admin/team member
   const joinBreakoutRoom = async (roomId: string) => {
     try {
@@ -188,12 +192,16 @@ export default function RoomControls() {
         await room.disconnect();
       }
       
-      // Open the breakout room in a new window
-      const breakoutUrl = `/breakout?room=${roomId}&token=${encodeURIComponent(token)}`;
-      window.open(breakoutUrl, '_blank');
+      // Set flag that we'll be returning to Arena later
+      sessionStorage.setItem('returning_from_breakout', 'true');
       
-      // Reload the page to reset state
-      window.location.reload();
+      // Create the breakout URL
+      const breakoutUrl = `/breakout?room=${roomId}&token=${encodeURIComponent(token)}`;
+      
+      // Use navigate instead of window.open
+      void navigate(breakoutUrl);
+      
+      // No need for page reload since we're navigating away
     } catch (error) {
       console.error("Error joining breakout room:", error);
       alert(`Error joining breakout: ${error instanceof Error ? error.message : "Unknown error"}`);
@@ -203,8 +211,8 @@ export default function RoomControls() {
   const handleLeave = () => {
     if (room) {
       void room.disconnect();
-      // Force reload the page to reset the state
-      window.location.reload();
+      // Navigate to homepage instead of reloading
+      void navigate('/');
     }
   };
 

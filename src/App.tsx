@@ -8,7 +8,7 @@ import {
 } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { Routes, Route, Navigate, Link } from "react-router-dom";
+import { Routes, Route, Navigate, Link, useNavigate } from "react-router-dom";
 import Home from "./pages/Home";
 import TeamSignIn from "./pages/TeamSignIn";
 import ClientSignIn from "./pages/ClientSignIn";
@@ -171,6 +171,9 @@ function Content({ userRole }: { userRole: string | null }) {
   const generateBreakoutToken = useAction(api.breakoutActions.generateBreakoutRoomToken);
   const [isJoining, setIsJoining] = useState<Record<string, boolean>>({});
   
+  // Import useNavigate from react-router-dom
+  const navigate = useNavigate();
+  
   // Function to join a breakout room
   const joinBreakoutRoom = async (roomId: string, inviteId: string) => {
     try {
@@ -179,9 +182,11 @@ function Content({ userRole }: { userRole: string | null }) {
       // Generate token and open the room
       const token = await generateBreakoutToken({ roomId });
       
-      // Open the breakout room in a new window
+      // Create the breakout URL
       const breakoutUrl = `/breakout?room=${roomId}&token=${encodeURIComponent(token)}`;
-      window.open(breakoutUrl, '_blank');
+      
+      // Use navigate instead of window.open
+      void navigate(breakoutUrl);
     } catch (error) {
       console.error("Error joining breakout room:", error);
       alert(`Error joining breakout: ${error instanceof Error ? error.message : "Unknown error"}`);

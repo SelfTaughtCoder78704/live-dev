@@ -4,6 +4,7 @@ import { api } from '../../convex/_generated/api';
 import { Id } from '../../convex/_generated/dataModel';
 import { useConvexAuth } from 'convex/react';
 import { useRoomContext } from '@livekit/components-react';
+import { useNavigate } from 'react-router-dom';
 
 export default function ClientActiveBreakouts() {
   const { isAuthenticated } = useConvexAuth();
@@ -12,6 +13,7 @@ export default function ClientActiveBreakouts() {
   const generateBreakoutToken = useAction(api.breakoutActions.generateBreakoutRoomToken);
   const [isJoining, setIsJoining] = useState<Record<string, boolean>>({});
   const room = useRoomContext();
+  const navigate = useNavigate();
   
   // Only show for authenticated clients with active breakouts
   if (!isAuthenticated || !currentUser || currentUser.role !== 'client' || !activeBreakouts || activeBreakouts.length === 0) {
@@ -30,12 +32,14 @@ export default function ClientActiveBreakouts() {
         await room.disconnect();
       }
       
-      // Open the breakout room in a new window
-      const breakoutUrl = `/breakout?room=${roomId}&token=${encodeURIComponent(token)}`;
-      window.open(breakoutUrl, '_blank');
+      // Set flag that we'll be returning to Arena later
+      sessionStorage.setItem('returning_from_breakout', 'true');
       
-      // Reload the page to reset state
-      window.location.reload();
+      // Create the breakout URL
+      const breakoutUrl = `/breakout?room=${roomId}&token=${encodeURIComponent(token)}`;
+      
+      // Use navigate instead of window.open and don't reload the page
+      void navigate(breakoutUrl);
     } catch (error) {
       console.error("Error joining breakout room:", error);
       alert(`Error joining breakout: ${error instanceof Error ? error.message : "Unknown error"}`);
