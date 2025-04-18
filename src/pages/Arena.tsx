@@ -136,11 +136,6 @@ export default function Arena() {
     }
   };
 
-  // When navigating to a breakout room, set flag for returning
-  const handleBeforeBreakout = () => {
-    sessionStorage.setItem('returning_from_breakout', 'true');
-  };
-
   if (error) {
     return (
       <div className="p-8 flex flex-col gap-4">
