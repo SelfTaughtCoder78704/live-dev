@@ -7,6 +7,7 @@ export interface TranscriptionContextType {
   interimTranscript: string;
   listening: boolean;
   resetTranscript: () => void;
+  resetAllTranscriptions: () => Promise<void>;
   toggleTranscription: () => void;
   showTranscript: boolean;
   setShowTranscript: React.Dispatch<React.SetStateAction<boolean>>;

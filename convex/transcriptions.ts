@@ -102,4 +102,63 @@ export const subscribeToRoomTranscriptions = query({
     // Return in chronological order
     return transcriptions.reverse();
   },
+});
+
+// Archive and reset transcriptions for a room
+export const archiveAndResetTranscriptions = mutation({
+  args: {
+    roomId: v.string(),
+    archiveType: v.union(v.literal("arena"), v.literal("breakout")),
+  },
+  handler: async (ctx, args) => {
+    // Get authenticated user
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("User not authenticated");
+    }
+
+    // Get all transcriptions for this room
+    const transcriptions = await ctx.db
+      .query("transcriptions")
+      .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
+      .collect();
+
+    if (transcriptions.length === 0) {
+      return { success: true, message: "No transcriptions to archive" };
+    }
+
+    // Map transcriptions to the format needed for archive
+    const transcriptionsForArchive = transcriptions.map(t => ({
+      userId: t.userId,
+      userEmail: t.userEmail,
+      userName: t.userName,
+      text: t.text,
+      timestamp: t.timestamp,
+      isFinal: t.isFinal
+    }));
+
+    // Create archive based on type
+    const archiveTableName = args.archiveType === "arena"
+      ? "arenaTranscriptArchives"
+      : "breakoutTranscriptArchives";
+
+    // Create the archive record
+    await ctx.db.insert(archiveTableName, {
+      originalRoomId: args.roomId,
+      archivedAt: Date.now(),
+      archivedBy: userId,
+      transcriptions: transcriptionsForArchive
+    });
+
+    // Delete all existing transcriptions for this room
+    for (const t of transcriptions) {
+      await ctx.db.delete(t._id);
+    }
+
+    return {
+      success: true,
+      message: `Archived ${transcriptions.length} transcriptions`,
+      archivedCount: transcriptions.length
+    };
+  }
 }); 

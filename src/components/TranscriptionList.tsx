@@ -13,7 +13,7 @@ const TranscriptionList: React.FC<TranscriptionListProps> = ({
     transcript,
     interimTranscript,
     listening, 
-    resetTranscript, 
+    resetAllTranscriptions,
     showTranscript,
     setShowTranscript 
   } = useTranscription();
@@ -90,10 +90,10 @@ const TranscriptionList: React.FC<TranscriptionListProps> = ({
         <h3 className="text-sm font-bold">Live Transcript</h3>
         <div className="flex gap-2">
           <button
-            onClick={resetTranscript}
+            onClick={() => void resetAllTranscriptions()}
             className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded"
           >
-            Reset
+            Reset All
           </button>
           <button
             onClick={() => setShowTranscript(false)}

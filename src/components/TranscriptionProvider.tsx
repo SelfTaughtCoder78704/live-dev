@@ -37,6 +37,7 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({
   // Convex mutations
   const updateAllowedToTranscribe = useMutation(api.myFunctions.updateAllowedToTranscribe);
   const addTranscription = useMutation(api.transcriptions.addTranscription);
+  const archiveAndReset = useMutation(api.transcriptions.archiveAndResetTranscriptions);
   
   // Get transcriptions for this room
   const transcriptions = useQuery(api.transcriptions.subscribeToRoomTranscriptions, {
@@ -61,6 +62,34 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({
       SpeechRecognition.startListening({ continuous: true, language: 'en-US' });
       void updateAllowedToTranscribe({ allowedToTranscribe: true });
       setShowTranscript(true);
+    }
+  };
+  
+  // Archive and reset all transcriptions
+  const resetAllTranscriptions = async (): Promise<void> => {
+    try {
+      // Reset local transcript
+      resetTranscript();
+      
+      // Determine if we're in arena or breakout based on room ID
+      const archiveType = roomId.startsWith('breakout') ? 'breakout' : 'arena';
+      
+      // Call the Convex mutation to archive and reset
+      const result = await archiveAndReset({
+        roomId,
+        archiveType
+      });
+      
+      console.log("Transcriptions archived and reset:", result);
+      
+      // Show feedback (optional)
+      if (result.archivedCount && result.archivedCount > 0) {
+        alert(`Archived ${result.archivedCount} messages and cleared transcript.`);
+      }
+    } catch (error) {
+      console.error("Failed to archive transcriptions:", error);
+      alert("Error resetting transcriptions. Please try again.");
+      throw error;
     }
   };
 
@@ -113,6 +142,7 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({
     interimTranscript,
     listening,
     resetTranscript,
+    resetAllTranscriptions,
     toggleTranscription,
     showTranscript,
     setShowTranscript,

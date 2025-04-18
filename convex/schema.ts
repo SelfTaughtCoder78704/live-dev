@@ -72,4 +72,38 @@ export default defineSchema({
   }).index("by_room", ["roomId"])
     .index("by_user", ["userId"])
     .index("by_time", ["timestamp"]),
+
+  // Table for arena transcript archives
+  arenaTranscriptArchives: defineTable({
+    originalRoomId: v.string(),   // Original arena room ID
+    archivedAt: v.float64(),      // When this archive was created
+    archivedBy: v.id("users"),    // User who initiated the archive
+    transcriptions: v.array(      // Array of archived transcriptions
+      v.object({
+        userId: v.id("users"),
+        userEmail: v.string(),
+        userName: v.optional(v.string()),
+        text: v.string(),
+        timestamp: v.float64(),
+        isFinal: v.boolean()
+      })
+    )
+  }).index("by_room", ["originalRoomId"]),
+
+  // Table for breakout transcript archives
+  breakoutTranscriptArchives: defineTable({
+    originalRoomId: v.string(),   // Original breakout room ID
+    archivedAt: v.float64(),      // When this archive was created
+    archivedBy: v.id("users"),    // User who initiated the archive
+    transcriptions: v.array(      // Array of archived transcriptions
+      v.object({
+        userId: v.id("users"),
+        userEmail: v.string(),
+        userName: v.optional(v.string()),
+        text: v.string(),
+        timestamp: v.float64(),
+        isFinal: v.boolean()
+      })
+    )
+  }).index("by_room", ["originalRoomId"]),
 });
