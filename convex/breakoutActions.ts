@@ -98,7 +98,7 @@ export const cleanupBreakoutRoom = action({
   args: {
     roomId: v.string(),
   },
-  handler: async (ctx, args): Promise<{ success: boolean; error?: string }> => {
+  handler: async (ctx, args): Promise<{ success: boolean; error?: string; alreadyDeleted?: boolean }> => {
     try {
       // Get the current authenticated user ID
       const identity = await ctx.auth.getUserIdentity();
@@ -130,11 +130,24 @@ export const cleanupBreakoutRoom = action({
         apiSecret
       );
 
-      // Delete the room
-      await roomService.deleteRoom(args.roomId);
-
-      console.log("cleanupBreakoutRoom: Successfully deleted room", args.roomId);
-      return { success: true };
+      try {
+        // Delete the room
+        await roomService.deleteRoom(args.roomId);
+        console.log("cleanupBreakoutRoom: Successfully deleted room", args.roomId);
+        return { success: true };
+      } catch (roomError: any) {
+        // Check for 404 Not Found or similar errors indicating room doesn't exist
+        if (
+          roomError.message?.includes("not found") ||
+          roomError.message?.includes("404") ||
+          roomError.status === 404
+        ) {
+          console.log("cleanupBreakoutRoom: Room", args.roomId, "not found - already deleted");
+          return { success: true, alreadyDeleted: true };
+        }
+        // For other errors, propagate them
+        throw roomError;
+      }
     } catch (error) {
       console.error("cleanupBreakoutRoom: Error deleting room:", error);
       return {

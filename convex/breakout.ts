@@ -484,7 +484,9 @@ export const completeBreakoutInvite = mutation({
       .collect();
 
     if (invites.length === 0) {
-      throw new Error(`No active invitations found for room ${args.roomId}`);
+      // Check if this was already completed - don't throw an error
+      console.log(`completeBreakoutInvite: No active invitations found for room ${args.roomId}, likely already completed`);
+      return { success: true, deleted: 0, alreadyCompleted: true };
     }
 
     // Check if user is a participant in any of these invitations
