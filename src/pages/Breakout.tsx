@@ -259,7 +259,7 @@ export default function Breakout() {
     setToken(paramToken);
     
     // Add handler to clean up the session when the tab is closed (but not when navigating)
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+    const handleBeforeUnload = () => {
       // Check if cleanup already initiated
       if (sessionStorage.getItem(`cleanup_${room}`) === 'true') {
         console.log("Cleanup already initiated, skipping duplicate");
