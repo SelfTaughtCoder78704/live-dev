@@ -1,4 +1,4 @@
-import { useQuery, useAction } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import ActiveBreakoutSessions from "./ActiveBreakoutSessions";
 import RoleSpecificInfo from "./RoleSpecificInfo";

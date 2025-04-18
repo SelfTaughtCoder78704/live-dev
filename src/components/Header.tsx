@@ -1,5 +1,4 @@
 import { Link } from "react-router-dom";
-import { useConvexAuth } from "convex/react";
 import SignOutButton from "./SignOutButton";
 
 type HeaderProps = {

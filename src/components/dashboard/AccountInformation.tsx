@@ -1,11 +1,11 @@
 type AccountInfoData = {
-  viewer: string;
-  role?: string;
-  name?: string;
-  profileType?: string;
-  status?: string;
-  dateAdded?: number;
-  notes?: string;
+  viewer: string | null;
+  role?: string | null;
+  name?: string | null;
+  profileType?: string | null;
+  status?: string | null;
+  dateAdded?: number | null;
+  notes?: string | null;
 };
 
 type AccountInformationProps = {
@@ -22,7 +22,7 @@ export default function AccountInformation({ dashboardInfo }: AccountInformation
     <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-md">
       <h2 className="text-xl font-bold mb-2">Account Information</h2>
       <div className="space-y-2">
-        <p><span className="font-semibold">Email:</span> {dashboardInfo.viewer}</p>
+        <p><span className="font-semibold">Email:</span> {dashboardInfo.viewer || "Not available"}</p>
         <p><span className="font-semibold">Role:</span> {dashboardInfo.role || "Not assigned"}</p>
         <p><span className="font-semibold">Name:</span> {dashboardInfo.name || "Not provided"}</p>
         
