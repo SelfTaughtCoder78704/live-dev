@@ -58,4 +58,18 @@ export default defineSchema({
     isActive: v.boolean(),      // Whether this room is the current active one
   }).index("by_type", ["type"])
     .index("by_active", ["isActive"]),
+
+  // Table for user transcriptions
+  transcriptions: defineTable({
+    userId: v.id("users"),      // User ID of the speaker
+    userEmail: v.string(),      // Email for display/identification
+    userName: v.optional(v.string()), // Optional display name
+    roomId: v.string(),         // Room where this was spoken (arena or breakout)
+    text: v.string(),           // The transcribed text
+    timestamp: v.float64(),     // When this was spoken/transcribed
+    isFinal: v.boolean(),       // Whether this is a final transcription segment
+    messageId: v.optional(v.string()) // For grouping continuous chunks
+  }).index("by_room", ["roomId"])
+    .index("by_user", ["userId"])
+    .index("by_time", ["timestamp"]),
 });

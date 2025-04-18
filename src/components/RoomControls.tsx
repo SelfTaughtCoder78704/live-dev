@@ -3,9 +3,11 @@ import { useAction, useQuery, useMutation } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { Id } from '../../convex/_generated/dataModel';
 import { useConvexAuth } from 'convex/react';
-import { useRoomContext, useParticipants, ControlBar, useLocalParticipant } from '@livekit/components-react';
-import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
+import { useRoomContext, useParticipants, ControlBar } from '@livekit/components-react';
 import { useNavigate } from 'react-router-dom';
+import { TranscriptionProvider } from './TranscriptionProvider';
+import TranscriptionList from './TranscriptionList';
+import { useTranscription } from './useTranscription';
 
 export default function RoomControls() {
   const room = useRoomContext();
@@ -15,94 +17,9 @@ export default function RoomControls() {
   const [showBreakoutsMenu, setShowBreakoutsMenu] = useState(false);
   const [invitingEmail, setInvitingEmail] = useState<string | null>(null);
   const [activeBreakouts, setActiveBreakouts] = useState<Record<string, {roomId: string, invitee: string, status: string}>>({});
-  const [showTranscript, setShowTranscript] = useState(false);
-  
-  // Voice transcription
-  const {
-    transcript,
-    listening,
-    resetTranscript,
-    browserSupportsSpeechRecognition,
-    isMicrophoneAvailable,
-  } = useSpeechRecognition();
-  
-  const updateAllowedToTranscribe = useMutation(api.myFunctions.updateAllowedToTranscribe);
-  
-  // Get local participant to check if microphone is enabled
-  const { localParticipant } = useLocalParticipant();
-  const isMicrophoneEnabled = localParticipant?.isMicrophoneEnabled;
   
   const inviteMenuRef = useRef<HTMLDivElement>(null);
   const breakoutsMenuRef = useRef<HTMLDivElement>(null);
-  const transcriptRef = useRef<HTMLDivElement>(null);
-  
-  // Toggle voice transcription
-  const toggleTranscription = () => {
-    // Only allow transcription if microphone is enabled in LiveKit
-    if (!isMicrophoneEnabled) {
-      alert("Please enable your microphone in the control bar first");
-      return;
-    }
-    
-    if (listening) {
-      SpeechRecognition.stopListening();
-      void updateAllowedToTranscribe({ allowedToTranscribe: false });
-    } else {
-      SpeechRecognition.startListening({ continuous: true, language: 'en-US' });
-      void updateAllowedToTranscribe({ allowedToTranscribe: true });
-      setShowTranscript(true);
-    }
-  };
-  
-  // Handle clicks outside of menus
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      // Close invite menu if click outside
-      if (showInviteMenu && 
-          inviteMenuRef.current && 
-          !inviteMenuRef.current.contains(event.target as Node)) {
-        setShowInviteMenu(false);
-      }
-      
-      // Close breakouts menu if click outside
-      if (showBreakoutsMenu && 
-          breakoutsMenuRef.current && 
-          !breakoutsMenuRef.current.contains(event.target as Node)) {
-        setShowBreakoutsMenu(false);
-      }
-      
-      // Close transcript if click outside
-      if (showTranscript && 
-          transcriptRef.current && 
-          !transcriptRef.current.contains(event.target as Node)) {
-        setShowTranscript(false);
-      }
-    };
-    
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showInviteMenu, showBreakoutsMenu, showTranscript]);
-  
-  // Stop listening when component unmounts
-  useEffect(() => {
-    return () => {
-      if (listening) {
-        SpeechRecognition.stopListening();
-        void updateAllowedToTranscribe({ allowedToTranscribe: false });
-      }
-    };
-  }, [listening, updateAllowedToTranscribe]);
-  
-  // Effect to stop transcription when microphone is disabled
-  useEffect(() => {
-    if (!isMicrophoneEnabled && listening) {
-      console.log("Microphone disabled, stopping transcription");
-      SpeechRecognition.stopListening();
-      void updateAllowedToTranscribe({ allowedToTranscribe: false });
-    }
-  }, [isMicrophoneEnabled, listening, updateAllowedToTranscribe]);
   
   // Get actual LiveKit participants
   const participants = useParticipants();
@@ -140,6 +57,30 @@ export default function RoomControls() {
       return false;
     }
   });
+  
+  // Handle clicks outside of menus
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      // Close invite menu if click outside
+      if (showInviteMenu && 
+          inviteMenuRef.current && 
+          !inviteMenuRef.current.contains(event.target as Node)) {
+        setShowInviteMenu(false);
+      }
+      
+      // Close breakouts menu if click outside
+      if (showBreakoutsMenu && 
+          breakoutsMenuRef.current && 
+          !breakoutsMenuRef.current.contains(event.target as Node)) {
+        setShowBreakoutsMenu(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showInviteMenu, showBreakoutsMenu]);
   
   // Check sent invitations for accepted ones and track them
   useEffect(() => {
@@ -264,184 +205,166 @@ export default function RoomControls() {
     }
   }, [userToInvite, invitingEmail, sendInvite, currentUser]);
   
-  // Show warning if browser doesn't support speech recognition
-  if (!browserSupportsSpeechRecognition) {
-    console.warn("Browser doesn't support speech recognition");
-  }
-  
-  if (!isMicrophoneAvailable) {
-    console.warn("Microphone is not available");
-  }
+  // Get the arena room ID for transcriptions
+  const persistentRoom = useQuery(api.rooms.getArenaRoom);
+  const arenaRoomId = persistentRoom?.name || 'arena';
   
   return (
-    <div className="fixed bottom-4 left-0 right-0 flex justify-center gap-4 z-50">
-      <ControlBar variation="minimal" className="bg-gray-800 bg-opacity-75 rounded-lg p-2" />
-      
-      {/* Voice transcription button */}
-      <button
-        onClick={toggleTranscription}
-        className={`
-          ${listening 
-            ? 'bg-red-500 hover:bg-red-600' 
-            : isMicrophoneEnabled 
-              ? 'bg-purple-500 hover:bg-purple-600' 
-              : 'bg-gray-400 relative'
-          } 
-          text-white font-medium px-4 py-2 rounded-md flex items-center relative
-        `}
-        disabled={!isMicrophoneEnabled && !listening}
-        title={isMicrophoneEnabled ? "Toggle transcription" : "Enable microphone first"}
-      >
-        {!isMicrophoneEnabled && (
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-400 bg-opacity-90 rounded-md">
-            <div className="flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1 text-white" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07zM5 8a1 1 0 00-2 0h2zm12 0a1 1 0 10-2 0h2z" clipRule="evenodd" />
-                <path d="M3 4.5L17 18.5" stroke="currentColor" strokeWidth="2"/>
-              </svg>
-              <span>Transcribe?</span>
-            </div>
+    <TranscriptionProvider roomId={arenaRoomId}>
+      <div className="fixed bottom-4 left-0 right-0 flex justify-center gap-4 z-50">
+        <ControlBar variation="minimal" className="bg-gray-800 bg-opacity-75 rounded-lg p-2" />
+        
+        {/* Transcription controls */}
+        <TranscriptionButton />
+        
+        {/* Active breakout rooms - only shown to admin/user roles */}
+        {canInviteToBreakout && Object.keys(activeBreakouts).length > 0 && (
+          <div className="relative mr-2">
+            <button
+              onClick={() => setShowBreakoutsMenu(!showBreakoutsMenu)}
+              className="bg-green-500 hover:bg-green-600 text-white font-medium px-4 py-2 rounded-md relative"
+            >
+              Active Breakouts
+              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full">
+                {Object.keys(activeBreakouts).length}
+              </span>
+            </button>
+            
+            {showBreakoutsMenu && (
+              <div 
+                ref={breakoutsMenuRef}
+                className="absolute bottom-full mb-2 right-0 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-3 min-w-[220px] max-h-[300px] overflow-y-auto"
+              >
+                <h3 className="text-sm font-bold mb-2 border-b pb-1">Active Breakout Rooms</h3>
+                <ul className="space-y-2">
+                  {Object.entries(activeBreakouts).map(([id, { roomId, invitee, status }]) => (
+                    <li key={id} className="flex flex-col">
+                      <span className="text-sm font-medium">Session with {invitee}</span>
+                      <div className="flex justify-between items-center mt-1">
+                        <span className={`text-xs ${
+                          status === "ongoing" 
+                            ? "text-green-500" 
+                            : "text-gray-500"
+                        }`}>
+                          {status === "ongoing" ? "In Progress" : "Waiting to Join"}
+                        </span>
+                        <button
+                          onClick={() => void joinBreakoutRoom(roomId)}
+                          className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded"
+                        >
+                          {status === "ongoing" ? "Rejoin" : "Join"}
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-          <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
-        </svg>
-        {listening ? 'Stop Transcribing' : 'Transcribe'}
-      </button>
-      
-      {/* Transcript popup */}
-      {showTranscript && (
-        <div 
-          ref={transcriptRef}
-          className="absolute bottom-16 left-1/2 transform -translate-x-1/2 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-3 max-w-lg w-full"
+        
+        {/* Breakout room invitation controls - only shown to admin/user roles */}
+        {canInviteToBreakout && (
+          <div className="relative">
+            <button
+              onClick={() => setShowInviteMenu(!showInviteMenu)}
+              className="bg-blue-500 h-full hover:bg-blue-600 text-white font-medium px-4 py-2 rounded-md"
+            >
+              Breakout
+            </button>
+            
+            {showInviteMenu && (
+              <div 
+                ref={inviteMenuRef}
+                className="absolute bottom-full mb-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-3 min-w-[200px] max-h-[300px] overflow-y-auto"
+              >
+                <h3 className="text-sm font-bold mb-2 border-b pb-1">Invite to Breakout Room</h3>
+                
+                {clientParticipants.length === 0 ? (
+                  <p className="text-xs text-gray-500 dark:text-gray-400">No clients available to invite</p>
+                ) : (
+                  <ul className="space-y-1">
+                    {clientParticipants.map((participant) => {
+                      const meta = participant.metadata ? JSON.parse(participant.metadata) : {};
+                      const email = meta.email || participant.identity;
+                      const isLoading = email === invitingEmail;
+                      
+                      return (
+                        <li key={participant.sid} className="flex justify-between items-center">
+                          <span className="text-sm">{meta.name || participant.identity}</span>
+                          <button
+                            className={`text-xs ${
+                              isLoading ? 'bg-gray-500' : 'bg-blue-500 hover:bg-blue-600'
+                            } text-white px-2 py-1 rounded`}
+                            onClick={() => {
+                              if (!isLoading && email) {
+                                startInvite(email);
+                              }
+                            }}
+                            disabled={isLoading}
+                          >
+                            {isLoading ? 'Sending...' : 'Invite'}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+        
+        <button 
+          onClick={handleLeave}
+          className="bg-red-500 hover:bg-red-600 text-white font-medium px-4 py-2 rounded-md"
         >
-          <div className="flex justify-between items-center mb-2">
-            <h3 className="text-sm font-bold">Live Transcript</h3>
-            <div className="flex gap-2">
-              <button
-                onClick={resetTranscript}
-                className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded"
-              >
-                Reset
-              </button>
-              <button
-                onClick={() => setShowTranscript(false)}
-                className="text-xs bg-gray-300 hover:bg-gray-400 text-gray-800 px-2 py-1 rounded"
-              >
-                Close
-              </button>
-            </div>
+          Leave Room
+        </button>
+      </div>
+      
+      {/* Transcript display */}
+      <div className="absolute bottom-16 left-1/2 transform -translate-x-1/2">
+        <TranscriptionList />
+      </div>
+    </TranscriptionProvider>
+  );
+}
+
+// Separated transcription button component
+function TranscriptionButton() {
+  const { toggleTranscription, listening, isMicrophoneEnabled } = useTranscription();
+  
+  return (
+    <button
+      onClick={toggleTranscription}
+      className={`
+        ${listening 
+          ? 'bg-red-500 hover:bg-red-600' 
+          : isMicrophoneEnabled 
+            ? 'bg-purple-500 hover:bg-purple-600' 
+            : 'bg-gray-400 relative'
+        } 
+        text-white font-medium px-4 py-2 rounded-md flex items-center relative
+      `}
+      disabled={!isMicrophoneEnabled && !listening}
+      title={isMicrophoneEnabled ? "Toggle transcription" : "Enable microphone first"}
+    >
+      {!isMicrophoneEnabled && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-400 bg-opacity-90 rounded-md">
+          <div className="flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1 text-white" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07zM5 8a1 1 0 00-2 0h2zm12 0a1 1 0 10-2 0h2z" clipRule="evenodd" />
+              <path d="M3 4.5L17 18.5" stroke="currentColor" strokeWidth="2"/>
+            </svg>
+            <span>Transcribe?</span>
           </div>
-          <div className="bg-gray-100 dark:bg-gray-700 p-2 rounded max-h-32 overflow-y-auto">
-            <p className="text-sm">{transcript || "Listening..."}</p>
-          </div>
         </div>
       )}
-      
-      {/* Active breakout rooms - only shown to admin/user roles */}
-      {canInviteToBreakout && Object.keys(activeBreakouts).length > 0 && (
-        <div className="relative mr-2">
-          <button
-            onClick={() => setShowBreakoutsMenu(!showBreakoutsMenu)}
-            className="bg-green-500 hover:bg-green-600 text-white font-medium px-4 py-2 rounded-md relative"
-          >
-            Active Breakouts
-            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full">
-              {Object.keys(activeBreakouts).length}
-            </span>
-          </button>
-          
-          {showBreakoutsMenu && (
-            <div 
-              ref={breakoutsMenuRef}
-              className="absolute bottom-full mb-2 right-0 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-3 min-w-[220px] max-h-[300px] overflow-y-auto"
-            >
-              <h3 className="text-sm font-bold mb-2 border-b pb-1">Active Breakout Rooms</h3>
-              <ul className="space-y-2">
-                {Object.entries(activeBreakouts).map(([id, { roomId, invitee, status }]) => (
-                  <li key={id} className="flex flex-col">
-                    <span className="text-sm font-medium">Session with {invitee}</span>
-                    <div className="flex justify-between items-center mt-1">
-                      <span className={`text-xs ${
-                        status === "ongoing" 
-                          ? "text-green-500" 
-                          : "text-gray-500"
-                      }`}>
-                        {status === "ongoing" ? "In Progress" : "Waiting to Join"}
-                      </span>
-                      <button
-                        onClick={() => void joinBreakoutRoom(roomId)}
-                        className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded"
-                      >
-                        {status === "ongoing" ? "Rejoin" : "Join"}
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
-      
-      {/* Breakout room invitation controls - only shown to admin/user roles */}
-      {canInviteToBreakout && (
-        <div className="relative">
-          <button
-            onClick={() => setShowInviteMenu(!showInviteMenu)}
-            className="bg-blue-500 h-full hover:bg-blue-600 text-white font-medium px-4 py-2 rounded-md"
-          >
-            Breakout
-          </button>
-          
-          {showInviteMenu && (
-            <div 
-              ref={inviteMenuRef}
-              className="absolute bottom-full mb-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-3 min-w-[200px] max-h-[300px] overflow-y-auto"
-            >
-              <h3 className="text-sm font-bold mb-2 border-b pb-1">Invite to Breakout Room</h3>
-              
-              {clientParticipants.length === 0 ? (
-                <p className="text-xs text-gray-500 dark:text-gray-400">No clients available to invite</p>
-              ) : (
-                <ul className="space-y-1">
-                  {clientParticipants.map((participant) => {
-                    const meta = participant.metadata ? JSON.parse(participant.metadata) : {};
-                    const email = meta.email || participant.identity;
-                    const isLoading = email === invitingEmail;
-                    
-                    return (
-                      <li key={participant.sid} className="flex justify-between items-center">
-                        <span className="text-sm">{meta.name || participant.identity}</span>
-                        <button
-                          className={`text-xs ${
-                            isLoading ? 'bg-gray-500' : 'bg-blue-500 hover:bg-blue-600'
-                          } text-white px-2 py-1 rounded`}
-                          onClick={() => {
-                            if (!isLoading && email) {
-                              startInvite(email);
-                            }
-                          }}
-                          disabled={isLoading}
-                        >
-                          {isLoading ? 'Sending...' : 'Invite'}
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-      
-      <button 
-        onClick={handleLeave}
-        className="bg-red-500 hover:bg-red-600 text-white font-medium px-4 py-2 rounded-md"
-      >
-        Leave Room
-      </button>
-    </div>
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
+      </svg>
+      {listening ? 'Stop Transcribing' : 'Transcribe'}
+    </button>
   );
 } 
